@@ -10,8 +10,8 @@ import (
 	"time"
 
 	pb "Distributed_load_balancer/proto"
+
 	"google.golang.org/grpc"
-	
 )
 
 var requestCount int
@@ -24,7 +24,7 @@ type server struct {
 func heavyComputation(n int) float64 {
 	result := 0.0
 	for i := 1; i < n; i++ {
-		result += math.Sqrt(float64(i)) * math.Log(float64(i+1))
+		result += math.Sqrt(float64(i)) * math.Log(float64(i+1)) * math.Pow(float64(i), 2)
 	}
 	return result
 }
