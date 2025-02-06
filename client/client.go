@@ -31,7 +31,7 @@ func getNextServer() string {
 
 // handleRequest maneja las solicitudes de cliente
 func handleRequest(client pb.LoadBalancerServiceClient) {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	var res *pb.Response
