@@ -44,7 +44,7 @@ func (s *server) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Respo
 }
 
 func main() {
-	listener, err := net.Listen("tcp", ":50052")
+	listener, err := net.Listen("tcp", ":50050")
 	if err != nil {
 		log.Fatalf("Error al iniciar el servidor: %v", err)
 	}
@@ -52,7 +52,7 @@ func main() {
 	s := grpc.NewServer()
 	pb.RegisterLoadBalancerServiceServer(s, &server{})
 
-	log.Println("Servidor 2 corriendo en el puerto 50052")
+	log.Println("Servidor 2 corriendo en el puerto 50050")
 	if err := s.Serve(listener); err != nil {
 		log.Fatalf("Error en el servidor: %v", err)
 	}
