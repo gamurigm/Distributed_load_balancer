@@ -47,7 +47,7 @@ func (s *server) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Respo
 	mu.Unlock()
 
 	start := time.Now()
-	computationResult := heavyComputation(10558700) // Cálculo pesado
+	computationResult := heavyComputation(905587) // Cálculo pesado
 	elapsed := time.Since(start)
 
 	log.Printf("Servidor en puerto %s procesó solicitud #%d en %s", port, currentRequest, elapsed)
