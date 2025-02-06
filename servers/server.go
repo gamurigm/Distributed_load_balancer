@@ -24,17 +24,17 @@ type server struct {
 	pb.UnimplementedLoadBalancerServiceServer
 }
 
-// heavyComputation realiza un cálculo pesado.
-// heavyComputation realiza un cálculo pesado.
 func heavyComputation(n int) float64 {
 	result := 0.0
 	for i := 1; i < n; i++ {
-		// Operaciones más complejas para aumentar la carga
+		// Operaciones matemáticas intensivas
 		sqrt := math.Sqrt(float64(i))
 		log := math.Log(float64(i + 1))
 		sin := math.Sin(float64(i))
 		cos := math.Cos(float64(i))
-		result += sqrt*log + sin*cos
+		tan := math.Tan(float64(i))
+		exp := math.Exp(float64(i) / 1000000) // Exponencial para mayor intensidad
+		result += sqrt*log + sin*cos + tan*exp
 	}
 	return result
 }
@@ -47,7 +47,7 @@ func (s *server) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Respo
 	mu.Unlock()
 
 	start := time.Now()
-	computationResult := heavyComputation(10000000) // Cálculo pesado
+	computationResult := heavyComputation(10558700) // Cálculo pesado
 	elapsed := time.Since(start)
 
 	log.Printf("Servidor en puerto %s procesó solicitud #%d en %s", port, currentRequest, elapsed)
