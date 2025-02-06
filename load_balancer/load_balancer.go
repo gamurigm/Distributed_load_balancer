@@ -44,7 +44,7 @@ func (s *server) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Respo
 func main() {
 
 	// Iniciar un servidor gRPC
-	lis, err := net.Listen("tcp", ":50000") // El balanceador escuchará en el puerto 50000
+	lis, err := net.Listen("tcp", ":50040") // El balanceador escuchará en el puerto 50000
 	if err != nil {
 		log.Fatalf("No se pudo iniciar el servidor: %v", err)
 	}
