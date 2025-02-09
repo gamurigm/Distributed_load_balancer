@@ -78,19 +78,31 @@ func (lb *LoadBalancer) selectServer() (string, error) {
 
 // Procesa una solicitud del cliente
 func (lb *LoadBalancer) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
+	log.Printf("Recibida solicitud para trabajo %d", req.WorkId) // Añadir este log
+
 	server, err := lb.selectServer()
 	if err != nil {
+		log.Printf("Error al seleccionar el servidor: %v", err)
 		return nil, err
 	}
 
+	log.Printf("Enviando solicitud al servidor: %s", server)
 	conn, err := grpc.Dial(server, grpc.WithInsecure())
 	if err != nil {
+		log.Printf("Error al conectar con el servidor %s: %v", server, err)
 		return nil, err
 	}
 	defer conn.Close()
 
 	client := pb.NewLoadBalancerServiceClient(conn)
-	return client.ProcessRequest(ctx, req)
+	res, err := client.ProcessRequest(ctx, req)
+	if err != nil {
+		log.Printf("Error al procesar la solicitud en el servidor %s: %v", server, err)
+		return nil, err
+	}
+
+	log.Printf("Respuesta del servidor %s: %s", server, res.Result)
+	return res, nil
 }
 
 func main() {
