@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"net"
@@ -10,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	pb "Distributed_load_balancer/proto"
+	pb "Distributed_load_balancer/proto" // Asegúrate de que la ruta del paquete sea correcta
 
 	"google.golang.org/grpc"
 )
@@ -27,6 +28,9 @@ type ServerLoad struct {
 	err     error
 }
 
+var csvMutex sync.Mutex
+
+// Lee la lista de servidores desde el archivo
 func readServersFromFile(filename string) ([]string, error) {
 	content, err := os.ReadFile(filename)
 	if err != nil {
@@ -36,7 +40,8 @@ func readServersFromFile(filename string) ([]string, error) {
 	return servers, nil
 }
 
-func getServerLoad(server string) (int32, error) {
+// Obtiene la carga de un servidor específico
+func (lb *LoadBalancer) getServerLoad(server string) (int32, error) {
 	conn, err := grpc.Dial(server, grpc.WithInsecure())
 	if err != nil {
 		return 0, fmt.Errorf("error al conectar con servidor %s: %v", server, err)
@@ -54,6 +59,7 @@ func getServerLoad(server string) (int32, error) {
 	return res.Load, nil
 }
 
+// Selecciona el servidor con menor carga
 func (lb *LoadBalancer) selectServer() (string, error) {
 	lb.mu.Lock()
 	defer lb.mu.Unlock()
@@ -67,7 +73,7 @@ func (lb *LoadBalancer) selectServer() (string, error) {
 		wg.Add(1)
 		go func(serverAddr string) {
 			defer wg.Done()
-			load, err := getServerLoad(serverAddr)
+			load, err := lb.getServerLoad(serverAddr)
 			loadChan <- ServerLoad{
 				address: serverAddr,
 				load:    load,
@@ -108,6 +114,7 @@ func (lb *LoadBalancer) selectServer() (string, error) {
 	return selectedServer, nil
 }
 
+// Procesa la solicitud de un cliente
 func (lb *LoadBalancer) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
 	log.Printf("Recibida solicitud para trabajo %d", req.WorkId)
 
@@ -129,10 +136,52 @@ func (lb *LoadBalancer) ProcessRequest(ctx context.Context, req *pb.Request) (*p
 	}
 
 	log.Printf("Respuesta del servidor %s: %s", server, res.Result)
+
+	// Guardar la respuesta en un archivo CSV
+	go func() {
+		csvMutex.Lock()
+		defer csvMutex.Unlock()
+
+		file, err := os.OpenFile("responses.csv", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Printf("Error al abrir el archivo CSV: %v", err)
+			return
+		}
+		defer file.Close()
+
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
+
+		// Si el archivo está vacío, escribir encabezado
+		fileInfo, err := file.Stat()
+		if err != nil {
+			log.Printf("Error al obtener información del archivo CSV: %v", err)
+			return
+		}
+
+		if fileInfo.Size() == 0 {
+			writer.Write([]string{"Timestamp", "TrabajoID", "Servidor", "Carga", "Resultado"})
+		}
+
+		// Escribir en el archivo CSV
+		record := []string{
+			time.Now().Format("2006/01/02 15:04:05"), // Fecha en formato YYYY/MM/DD HH:MM:SS
+			fmt.Sprintf("%d", req.WorkId),            // ID del trabajo
+			server,                                   // Servidor
+			//fmt.Sprintf("%d", carga),                 // Carga del servidor
+			res.Result, // Resultado del trabajo
+		}
+
+		if err := writer.Write(record); err != nil {
+			log.Printf("Error al escribir en el archivo CSV: %v", err)
+		}
+	}()
+
 	return res, nil
 }
 
 func main() {
+	// Leer la lista de servidores desde el archivo
 	servers, err := readServersFromFile("servers.txt")
 	if err != nil {
 		log.Fatalf("Error al leer las direcciones de los servidores: %v", err)
@@ -141,6 +190,7 @@ func main() {
 	log.Printf("Servidores cargados: %v", servers)
 	lb := &LoadBalancer{servers: servers}
 
+	// Crear un servidor GRPC
 	listener, err := net.Listen("tcp", ":4000")
 	if err != nil {
 		log.Fatalf("Error al iniciar el balanceador de carga: %v", err)
@@ -149,6 +199,7 @@ func main() {
 	s := grpc.NewServer()
 	pb.RegisterLoadBalancerServiceServer(s, lb)
 
+	// Iniciar el servidor
 	log.Printf("Balanceador de carga corriendo en el puerto :4000")
 	if err := s.Serve(listener); err != nil {
 		log.Fatalf("Error en el balanceador de carga: %v", err)
