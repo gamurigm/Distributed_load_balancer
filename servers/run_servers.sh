@@ -1,25 +1,20 @@
 #!/bin/bash
 
-# Preguntar al usuario el número de servidores a ejecutar
-read -p "Ingresa el número de servidores a ejecutar: " NUM_SERVERS
+echo "Ingrese el número de servidores:"
+read num_servers
 
-# Navegar al directorio de servidores
-cd servers/
+start_port=50051
+servers_file="servers.txt"  # Ruta al archivo en el directorio raíz
 
-# Compilar el servidor (si no está compilado)
-echo "Compilando el servidor..."
-go build -o server server.go
-if [ $? -ne 0 ]; then
-    echo "Error al compilar el servidor."
-    exit 1
-fi
-echo "Servidor compilado correctamente."
+> "$servers_file"  # Limpiar el archivo si ya existe
 
-# Ejecutar los servidores
-for ((i = 0; i < NUM_SERVERS; i++)); do
-    PORT=$((50051 + i))
-    echo "Ejecutando servidor en el puerto :$PORT..."
-    ./server :$PORT &
+for ((i=0; i<num_servers; i++))
+do
+    port=$((start_port + i))
+    go run ./servers/server.go ":$port" &
+    echo "localhost:$port" >> "$servers_file"  # Guardar la dirección del servidor
+    echo "Servidor iniciado en el puerto $port"
 done
 
 echo "Todos los servidores han sido iniciados."
+echo "Las direcciones de los servidores se han guardado en $servers_file."

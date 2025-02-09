@@ -1,17 +1,24 @@
 syntax = "proto3";
 
-package loadbalancer;
+package proto;
 
-option go_package = "Distributed_load_balancer/proto/loadbalancer";
+option go_package = "/proto";
 
 service LoadBalancerService {
     rpc ProcessRequest(Request) returns (Response);
+    rpc GetLoad(LoadRequest) returns (LoadResponse);
 }
 
 message Request {
-    string payload = 1;
+    int32 work_id = 1;
 }
 
 message Response {
     string result = 1;
+}
+
+message LoadRequest {}
+
+message LoadResponse {
+    int32 load = 1;
 }

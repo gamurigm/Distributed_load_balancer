@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v3.12.4
-// source: proto/load_balancer.proto
+// source: load_balancer.proto
 
-package loadbalancer
+package proto
 
 import (
 	context "context"
@@ -23,6 +23,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type LoadBalancerServiceClient interface {
 	ProcessRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error)
+	GetLoad(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (*LoadResponse, error)
 }
 
 type loadBalancerServiceClient struct {
@@ -35,7 +36,16 @@ func NewLoadBalancerServiceClient(cc grpc.ClientConnInterface) LoadBalancerServi
 
 func (c *loadBalancerServiceClient) ProcessRequest(ctx context.Context, in *Request, opts ...grpc.CallOption) (*Response, error) {
 	out := new(Response)
-	err := c.cc.Invoke(ctx, "/loadbalancer.LoadBalancerService/ProcessRequest", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/proto.LoadBalancerService/ProcessRequest", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *loadBalancerServiceClient) GetLoad(ctx context.Context, in *LoadRequest, opts ...grpc.CallOption) (*LoadResponse, error) {
+	out := new(LoadResponse)
+	err := c.cc.Invoke(ctx, "/proto.LoadBalancerService/GetLoad", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +57,7 @@ func (c *loadBalancerServiceClient) ProcessRequest(ctx context.Context, in *Requ
 // for forward compatibility
 type LoadBalancerServiceServer interface {
 	ProcessRequest(context.Context, *Request) (*Response, error)
+	GetLoad(context.Context, *LoadRequest) (*LoadResponse, error)
 	mustEmbedUnimplementedLoadBalancerServiceServer()
 }
 
@@ -56,6 +67,9 @@ type UnimplementedLoadBalancerServiceServer struct {
 
 func (UnimplementedLoadBalancerServiceServer) ProcessRequest(context.Context, *Request) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ProcessRequest not implemented")
+}
+func (UnimplementedLoadBalancerServiceServer) GetLoad(context.Context, *LoadRequest) (*LoadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetLoad not implemented")
 }
 func (UnimplementedLoadBalancerServiceServer) mustEmbedUnimplementedLoadBalancerServiceServer() {}
 
@@ -80,10 +94,28 @@ func _LoadBalancerService_ProcessRequest_Handler(srv interface{}, ctx context.Co
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/loadbalancer.LoadBalancerService/ProcessRequest",
+		FullMethod: "/proto.LoadBalancerService/ProcessRequest",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(LoadBalancerServiceServer).ProcessRequest(ctx, req.(*Request))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _LoadBalancerService_GetLoad_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(LoadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(LoadBalancerServiceServer).GetLoad(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/proto.LoadBalancerService/GetLoad",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(LoadBalancerServiceServer).GetLoad(ctx, req.(*LoadRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -92,14 +124,18 @@ func _LoadBalancerService_ProcessRequest_Handler(srv interface{}, ctx context.Co
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var LoadBalancerService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "loadbalancer.LoadBalancerService",
+	ServiceName: "proto.LoadBalancerService",
 	HandlerType: (*LoadBalancerServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "ProcessRequest",
 			Handler:    _LoadBalancerService_ProcessRequest_Handler,
 		},
+		{
+			MethodName: "GetLoad",
+			Handler:    _LoadBalancerService_GetLoad_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/load_balancer.proto",
+	Metadata: "load_balancer.proto",
 }

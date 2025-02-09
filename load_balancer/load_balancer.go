@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"sync"
 
 	pb "Distributed_load_balancer/proto"
@@ -12,50 +14,104 @@ import (
 	"google.golang.org/grpc"
 )
 
-var (
-	servers    []string   // Lista de servidores
-	nextServer = 0        // Índice del siguiente servidor
-	mu         sync.Mutex // Mutex para acceder de manera segura a la lista de servidores
-)
-
-// getNextServer obtiene el siguiente servidor de manera circular
-func getNextServer() string {
-	mu.Lock()
-	server := servers[nextServer]
-	nextServer = (nextServer + 1) % len(servers)
-	mu.Unlock()
-	return server
+type LoadBalancer struct {
+	pb.UnimplementedLoadBalancerServiceServer // Implementa la interfaz generada
+	servers                                   []string
+	mu                                        sync.Mutex
 }
 
-// Server es la implementación de nuestro servicio de balanceo de carga
-type server struct {
-	pb.UnimplementedLoadBalancerServiceServer
+// Lee las direcciones de los servidores desde un archivo
+func readServersFromFile(filename string) ([]string, error) {
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error al leer el archivo de servidores: %v", err)
+	}
+
+	// Divide el contenido en líneas y elimina espacios en blanco
+	servers := strings.Split(strings.TrimSpace(string(content)), "\n")
+	return servers, nil
 }
 
-// ProcessRequest maneja las solicitudes de los clientes, redirigiéndolas a los servidores correctos
-func (s *server) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
-	serverAddr := getNextServer()
+// Obtiene la carga de un servidor
+func getServerLoad(server string) (int32, error) {
+	conn, err := grpc.Dial(server, grpc.WithInsecure())
+	if err != nil {
+		return 0, err
+	}
+	defer conn.Close()
 
-	// Aquí puedes enviar la solicitud al servidor correspondiente, pero no estamos haciendo eso aquí.
-	// Este código solo redirige la solicitud al servidor.
-	return &pb.Response{Result: fmt.Sprintf("Solicitud enviada al servidor: %s", serverAddr)}, nil
+	client := pb.NewLoadBalancerServiceClient(conn)
+	res, err := client.GetLoad(context.Background(), &pb.LoadRequest{})
+	if err != nil {
+		return 0, err
+	}
+	return res.Load, nil
+}
+
+// Selecciona el servidor con menos carga
+func (lb *LoadBalancer) selectServer() (string, error) {
+	lb.mu.Lock()
+	defer lb.mu.Unlock()
+
+	var selectedServer string
+	var minLoad int32 = 1 << 30 // Un número grande
+
+	for _, server := range lb.servers {
+		load, err := getServerLoad(server)
+		if err != nil {
+			log.Printf("Error al obtener carga del servidor %s: %v", server, err)
+			continue
+		}
+
+		if load < minLoad {
+			minLoad = load
+			selectedServer = server
+		}
+	}
+
+	if selectedServer == "" {
+		return "", fmt.Errorf("no hay servidores disponibles")
+	}
+
+	return selectedServer, nil
+}
+
+// Procesa una solicitud del cliente
+func (lb *LoadBalancer) ProcessRequest(ctx context.Context, req *pb.Request) (*pb.Response, error) {
+	server, err := lb.selectServer()
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := grpc.Dial(server, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
+	defer conn.Close()
+
+	client := pb.NewLoadBalancerServiceClient(conn)
+	return client.ProcessRequest(ctx, req)
 }
 
 func main() {
-
-	// Iniciar un servidor gRPC
-	lis, err := net.Listen("tcp", ":50040") // El balanceador escuchará en el puerto 50000
+	// Leer las direcciones de los servidores desde el archivo
+	servers, err := readServersFromFile("servers.txt")
 	if err != nil {
-		log.Fatalf("No se pudo iniciar el servidor: %v", err)
+		log.Fatalf("Error al leer las direcciones de los servidores: %v", err)
 	}
 
-	// Crear un servidor gRPC
-	grpcServer := grpc.NewServer()
-	pb.RegisterLoadBalancerServiceServer(grpcServer, &server{})
+	lb := &LoadBalancer{servers: servers}
 
-	// Iniciar el servidor gRPC
-	log.Println("Balanceador de carga en ejecución en el puerto :50040")
-	if err := grpcServer.Serve(lis); err != nil {
-		log.Fatalf("Error al iniciar el servidor gRPC: %v", err)
+	listener, err := net.Listen("tcp", ":4000")
+	if err != nil {
+		log.Fatalf("Error al iniciar el balanceador de carga: %v", err)
+	}
+
+	s := grpc.NewServer()
+	pb.RegisterLoadBalancerServiceServer(s, lb)
+
+	log.Printf("Balanceador de carga corriendo en el puerto :4000")
+	if err := s.Serve(listener); err != nil {
+		log.Fatalf("Error en el balanceador de carga: %v", err)
 	}
 }
